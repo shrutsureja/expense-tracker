@@ -9,6 +9,7 @@ services:
       - PORT=8080
       - DB_PATH=/app/data/expense-tracker.db
     volumes:
+      - ./config.yaml:/app/config.yaml
       - app_data:/app/data
     restart: unless-stopped
     healthcheck:
