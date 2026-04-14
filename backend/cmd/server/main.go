@@ -1,10 +1,13 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
+	"strings"
 
 	"expense-tracker/internal/config"
 	"expense-tracker/internal/database"
@@ -138,9 +141,49 @@ func main() {
 		})
 	})
 
+	// Serve React SPA from embedded static files
+	r.Handle("/*", spaHandler())
+
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	log.Printf("Starting server on %s", addr)
 	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+//go:embed static
+var staticFS embed.FS
+
+func spaHandler() http.HandlerFunc {
+	sub, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		// static directory doesn't exist yet (dev mode) — serve a placeholder
+		return func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api") {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte("<html><body><h1>Frontend not built yet</h1><p>Run <code>make build-frontend</code> or <code>cd frontend && npm run dev</code></p></body></html>"))
+		}
+	}
+
+	fileServer := http.FileServer(http.FS(sub))
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Try to serve the file directly
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+
+		if _, err := fs.Stat(sub, path); err == nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// SPA fallback: serve index.html for all non-file routes
+		r.URL.Path = "/"
+		fileServer.ServeHTTP(w, r)
 	}
 }
