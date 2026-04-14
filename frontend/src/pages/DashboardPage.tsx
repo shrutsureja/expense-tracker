@@ -123,7 +123,7 @@ export function DashboardPage() {
                       <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v) => formatCurrency(Number(v))} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-1.5 mt-2">
@@ -171,7 +171,7 @@ export function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `₹${v}`} width={50} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v) => formatCurrency(Number(v))} />
                   <Line type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -221,7 +221,7 @@ function PaymentMethodChart({ range }: { range: DateRange }) {
         <BarChart data={data} layout="vertical">
           <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `₹${v}`} />
           <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
-          <Tooltip formatter={(v: number) => formatCurrency(v)} />
+          <Tooltip formatter={(v) => formatCurrency(Number(v))} />
           <Legend />
           <Bar dataKey="amount" fill="#3b82f6" radius={[0, 6, 6, 0]} />
         </BarChart>
