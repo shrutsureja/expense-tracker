@@ -1,0 +1,36 @@
+# Config (contains secrets)
+config.yaml
+
+# Google Drive service account credentials
+credentials/
+
+# SQLite database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# Backups
+backups/
+
+# Go
+bin/
+backend/static/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml

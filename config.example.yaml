@@ -1,0 +1,23 @@
+# Expense Tracker Configuration
+# Copy this file to config.yaml and update values before running.
+
+server:
+  port: 8080
+
+database:
+  path: "./data/expense-tracker.db"
+
+auth:
+  jwt_secret: "your-secret-key-change-in-production"
+  token_expiry: "360h"  # 15 days
+  super_admin:
+    username: "shrutsureja"
+    password: "changeme"
+
+backup:
+  enabled: true
+  interval: "168h"  # 7 days
+  local_retention: "1440h"  # 60 days (2 months)
+  google_drive:
+    credentials_file: "./credentials/gdrive-service-account.json"
+    folder_id: "your-google-drive-folder-id"
