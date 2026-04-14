@@ -41,7 +41,7 @@ Build a custom family expense tracking application for personal/family use. The 
 ```
 expense-tracker/
 ├── .gitignore
-├── .env.example
+├── config.example.yaml          # YAML-based configuration (copy to config.yaml)
 ├── Makefile
 ├── Dockerfile
 ├── docker-compose.yml
@@ -248,8 +248,8 @@ CREATE TABLE user_tag_frequency (
 ### PHASE A: PROJECT SCAFFOLDING (Steps 1-4)
 
 **Step 1: Root project files**
-- Create `.gitignore`, `.env.example`, `Makefile` (with stub targets), update `README.md`
-- `.env.example` must include: `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_PASSWORD`, `JWT_SECRET`, `PORT`, `DB_PATH`, `BACKUP_EMAIL_TO`, `BACKUP_SMTP_USER`, `BACKUP_SMTP_PASSWORD`
+- Create `.gitignore`, `config.example.yaml`, `Makefile` (with stub targets), update `README.md`
+- `config.example.yaml` is the YAML-based configuration file (see Config section below)
 - *Test*: files exist, `make` shows targets
 
 **Step 2: Go backend skeleton**
@@ -266,8 +266,8 @@ CREATE TABLE user_tag_frequency (
 
 **Step 4: Seed data**
 - Create `internal/database/seed.go` — idempotent super admin + 29 tags
-- Super admin username from `SUPER_ADMIN_USERNAME` env var (default: `admin`)
-- Super admin password from `SUPER_ADMIN_PASSWORD` env var
+- Super admin username from `config.yaml` → `auth.super_admin.username`
+- Super admin password from `config.yaml` → `auth.super_admin.password`
 - Add `golang.org/x/crypto/bcrypt` dependency
 - *Test*: DB has super admin user + 29 tags after startup
 
@@ -335,21 +335,22 @@ CREATE TABLE user_tag_frequency (
 - **The Go binary serves both the API and the React frontend** — no separate web server needed. In production, a single binary + single SQLite file is all that's required.
 - *Test*: build React, copy to static/, access via Go server
 
-**Step 14: Weekly database backup to Gmail**
+**Step 14: Weekly database backup to Google Drive**
 - Create `internal/service/backup_service.go`
-- Uses Go's built-in `time.Ticker` goroutine — runs weekly (configurable via `BACKUP_INTERVAL` env, default `168h`)
+- Uses Go's built-in `time.Ticker` goroutine — runs weekly (configurable via `config.yaml` → `backup.interval`, default `168h`)
 - Backup process:
   1. Copy SQLite DB file using SQLite's online backup API (`sqlite3_backup`) for safe, consistent snapshots
   2. Gzip compress the copy (e.g., `expense-tracker-backup-2026-04-14.db.gz`)
-  3. Send as email attachment via Gmail SMTP (`smtp.gmail.com:587` with TLS)
-  4. Env vars: `BACKUP_EMAIL_TO`, `BACKUP_SMTP_USER`, `BACKUP_SMTP_PASSWORD` (Gmail App Password)
-  5. After sending, keep local copy in `backups/` directory
-  6. Auto-delete local backups older than 2 months
-- Also runs a cleanup on the `backups/` folder at startup
-- Add `net/smtp` (stdlib) + `compress/gzip` (stdlib) — no extra dependencies
+  3. Upload to Google Drive folder via Google Drive API using a **Service Account**
+  4. Config: `config.yaml` → `backup.google_drive.folder_id` (the Drive folder ID) and `backup.google_drive.credentials_file` (path to service account JSON)
+  5. After uploading, keep local copy in `backups/` directory
+  6. Auto-delete local backups older than 2 months (both local files and Drive files)
+- Google Drive setup: Create a Google Cloud service account, download credentials JSON, share the target Drive folder with the service account email
+- Add Go dependency: `google.golang.org/api/drive/v3` + `google.golang.org/api/option`
+- Also runs a cleanup on the `backups/` folder and Drive folder at startup
 - Makefile target: `make backup` for manual trigger
 - Also add `POST /api/admin/backup` (super admin only) to trigger backup from UI
-- *Test*: set short interval, verify email received with .db.gz attachment, verify old backups are cleaned up
+- *Test*: set short interval, verify backup appears in Google Drive folder, verify old backups are cleaned up
 
 ### PHASE E: FRONTEND (Steps 15-24)
 
@@ -444,7 +445,8 @@ CREATE TABLE user_tag_frequency (
 
 **Step 27: Dockerfile + docker-compose**
 - Multi-stage: Node (build React) → Go (build binary with embedded static) → Alpine (runtime)
-- docker-compose.yml with env vars and data volume
+- docker-compose.yml mounts `config.yaml`, `credentials/` directory, and `data/` volume
+- `CONFIG_PATH` env var tells the binary where to find config.yaml inside the container
 - *Test*: `docker-compose up --build` → full app at :8080
 
 ### PHASE H: ANDROID (Step 28)
@@ -458,6 +460,39 @@ CREATE TABLE user_tag_frequency (
 
 ---
 
+## YAML Configuration (`config.yaml`)
+
+All configuration is in a single `config.yaml` file (not environment variables). The Go backend reads this on startup using `gopkg.in/yaml.v3`.
+
+```yaml
+# config.example.yaml — copy to config.yaml and fill in values
+
+server:
+  port: 8080
+
+database:
+  path: "./data/expense-tracker.db"
+
+auth:
+  jwt_secret: "your-secret-key-change-in-production"
+  token_expiry: "360h"  # 15 days
+  super_admin:
+    username: "shrutsureja"
+    password: "changeme"
+
+backup:
+  enabled: true
+  interval: "168h"  # 7 days
+  local_retention: "1440h"  # 60 days (2 months)
+  google_drive:
+    credentials_file: "./credentials/gdrive-service-account.json"
+    folder_id: "your-google-drive-folder-id"
+```
+
+The `internal/config/config.go` will define a matching Go struct and load from `config.yaml` (with `CONFIG_PATH` env var override for Docker).
+
+---
+
 ## Go Dependencies
 
 - `github.com/go-chi/chi/v5` — HTTP router
@@ -466,6 +501,9 @@ CREATE TABLE user_tag_frequency (
 - `github.com/golang-jwt/jwt/v5` — JWT
 - `golang.org/x/crypto/bcrypt` — password hashing
 - `github.com/xuri/excelize/v2` — Excel (.xlsx) file generation
+- `gopkg.in/yaml.v3` — YAML config parsing
+- `google.golang.org/api/drive/v3` — Google Drive API
+- `google.golang.org/api/option` — Google API auth options
 
 ## Frontend Dependencies
 
@@ -503,18 +541,26 @@ The **Go binary serves everything** — both the API (`/api/*`) and the React fr
 
 ---
 
-## Weekly Database Backup System (Gmail)
+## Weekly Database Backup System (Google Drive)
 
 The Go binary includes a built-in backup scheduler:
 
-1. **Trigger**: Runs automatically every 7 days (configurable via `BACKUP_INTERVAL` env var). Can also be triggered manually via `POST /api/admin/backup` or `make backup`
-2. **Process**: SQLite online backup API → gzip compress → email as attachment
-3. **Delivery**: Sent via Gmail SMTP (`smtp.gmail.com:587` with TLS) to `BACKUP_EMAIL_TO`
-4. **Gmail App Password**: Required since Gmail blocks less-secure apps. Generate at Google Account → Security → App Passwords
-5. **Local retention**: Backups saved in `backups/` directory, auto-deleted after 2 months
-6. **Env vars needed**: `BACKUP_EMAIL_TO`, `BACKUP_SMTP_USER`, `BACKUP_SMTP_PASSWORD`
-7. **Email subject**: `[ExpenseTracker] Weekly Backup - 2026-04-14`
-8. **Attachment**: `expense-tracker-backup-2026-04-14.db.gz` (~small file, SQLite compresses well)
+1. **Trigger**: Runs automatically every 7 days (configurable via `config.yaml` → `backup.interval`). Can also be triggered manually via `POST /api/admin/backup` or `make backup`
+2. **Process**: SQLite online backup API → gzip compress → upload to Google Drive
+3. **Delivery**: Uploaded to a specific Google Drive folder via Google Drive API v3
+4. **Auth**: Google Cloud Service Account with a credentials JSON file. The target Drive folder must be shared with the service account email.
+5. **Local retention**: Backups also saved in `backups/` directory, auto-deleted after 2 months
+6. **Drive cleanup**: Backups older than 2 months are automatically deleted from the Drive folder too
+7. **Config needed** (in `config.yaml`):
+   ```yaml
+   backup:
+     interval: "168h"  # 7 days
+     google_drive:
+       credentials_file: "./credentials/gdrive-service-account.json"
+       folder_id: "your-google-drive-folder-id"
+   ```
+8. **Filename**: `expense-tracker-backup-2026-04-14.db.gz` (~small file, SQLite compresses well)
+9. **Setup steps**: Create GCP project → Enable Drive API → Create service account → Download JSON key → Share Drive folder with service account email
 
 ---
 
@@ -526,5 +572,5 @@ The Go binary includes a built-in backup scheduler:
 4. **Docker**: `docker-compose up --build` → app works at :8080
 5. **E2E flow**: Super admin login → create family → owner login → add members → member login → add expenses → view dashboard → verify analytics
 6. **Excel export**: Filter expenses → click Export → verify .xlsx downloads and opens correctly
-7. **Backup**: Configure Gmail env vars → trigger manual backup via `make backup` or admin API → verify email received with .db.gz attachment
+7. **Backup**: Configure Google Drive credentials in `config.yaml` → trigger manual backup via `make backup` or admin API → verify `.db.gz` appears in Google Drive folder → verify backups older than 2 months are auto-deleted from Drive
 8. **Mobile**: Build APK → install on Android → verify all features work in WebView
