@@ -1,91 +1,130 @@
-# Expense Tracker
+# Family Wallet — Expense Tracker
 
-A family expense tracking application with web and Android support. Designed for ultra-low-friction expense entry that even elder family members can use comfortably.
+A family expense tracking app with web and Android support. Designed for ultra-low-friction expense entry — even elder family members can use it comfortably.
 
 ## Features
 
-- Quick 2-tap expense entry with smart tag suggestions
-- Family-based expense management with role-based access
-- Analytics dashboard with charts and breakdowns
-- Excel export for detailed reports
-- Weekly automatic backups to Google Drive
-- Mobile-friendly responsive design
-- Android WebView app
+- **2-tap quick add**: tap a frequent category → enter amount → done
+- **29 built-in categories** with emoji icons (Groceries, Petrol, Medicine, etc.)
+- **Smart suggestions**: most-used tags shown first based on your history
+- **Family roles**: super admin → family owner → family members (PIN login)
+- **Analytics dashboard**: per-person, per-category, daily trend, monthly comparison
+- **Mobile-first**: large touch targets, bottom navigation, elder-friendly design
+- **Android APK**: WebView wrapper — runs the same web app on Android
 
 ## Tech Stack
 
-- **Backend**: Go (chi router) + SQLite
-- **Frontend**: React + TypeScript + Vite + Tailwind CSS
-- **Charts**: Recharts
-- **Mobile**: Android WebView wrapper
-- **Deployment**: Docker (single container)
+| Layer | Tech |
+|-------|------|
+| Backend | Go + chi router |
+| Database | SQLite (embedded in binary) |
+| Frontend | React + TypeScript + Vite + Tailwind CSS |
+| Charts | Recharts |
+| Mobile | Android WebView wrapper |
+| Deployment | Docker (single 9MB binary + SQLite file) |
 
 ## Quick Start
 
-1. Copy the example config:
-   ```bash
-   cp config.example.yaml config.yaml
-   ```
-
-2. Edit `config.yaml` with your settings (super admin credentials, JWT secret, Google Drive backup config)
-
-3. Run in development mode:
-   ```bash
-   make setup
-   make dev
-   ```
-
-4. Build for production:
-   ```bash
-   make build
-   ./bin/expense-tracker
-   ```
-
-5. Or use Docker:
-   ```bash
-   docker-compose up --build
-   ```
-
-## Configuration
-
-All configuration is in `config.yaml`. See `config.example.yaml` for all available options.
-
-### Google Drive Backup Setup
-
-1. Create a Google Cloud project and enable the Google Drive API
-2. Create a service account and download the credentials JSON
-3. Place the JSON file at the path specified in `config.yaml` (default: `./credentials/gdrive-service-account.json`)
-4. Share your target Google Drive folder with the service account email
-5. Set the folder ID in `config.yaml`
-
-Backups run automatically on the configured interval (default: weekly). Backups older than 2 months are auto-deleted from both local storage and Google Drive.
-
-## Available Commands
+### Development
 
 ```bash
-make help              # Show all available commands
-make setup             # Install all dependencies
-make dev               # Run backend + frontend dev servers
-make build             # Build everything for production
-make backup            # Trigger a manual backup
-make docker-build      # Build Docker image
-make docker-run        # Run with docker-compose
-make test              # Run all tests
-make clean             # Remove build artifacts
+# 1. Set up dependencies
+make setup
+
+# 2. Create .env file
+cp .env.example .env
+# Edit .env — set SUPER_ADMIN_PASSWORD and JWT_SECRET
+
+# 3. Run backend + frontend dev servers (in parallel)
+make dev
+# Backend: http://localhost:8080
+# Frontend: http://localhost:5173 (proxies /api to backend)
+```
+
+### Production (single binary)
+
+```bash
+make build
+SUPER_ADMIN_PASSWORD=yourpassword JWT_SECRET=yoursecret ./bin/expense-tracker
+# App running at http://localhost:8080
+```
+
+### Docker
+
+```bash
+# Copy and edit env file
+cp .env.example .env
+
+docker-compose up --build
+# App running at http://localhost:8080
+```
+
+## Auth Setup
+
+1. Log in as super admin: username `shrutsureja`, password from `SUPER_ADMIN_PASSWORD` env var
+2. Go to Admin → Create a family (e.g. "Sureja Family") with an owner account
+3. Log in as the family owner → Family → Add Members with userid + PIN
+4. Share the userid and PIN verbally with family members
+
+## Android APK
+
+Change `SERVER_URL` in `mobile/android/app/build.gradle` to your server's IP, then:
+
+```bash
+# Requires Android SDK and ANDROID_HOME set
+make android-build
+# APK: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+make android-install   # Install on connected device/emulator
+```
+
+For local network, set `SERVER_URL` to `http://192.168.1.YOUR_IP:8080`.
+
+## All Make Commands
+
+```
+make help              Show all commands
+make setup             Install Go + npm dependencies
+make dev               Run both dev servers in parallel
+make dev-backend       Run Go backend only (port 8080)
+make dev-frontend      Run Vite dev server only (port 5173)
+make build             Build everything (frontend → embed → Go binary)
+make build-frontend    Build React app only
+make build-backend     Build Go binary only
+make docker-build      Build Docker image
+make docker-up         Start with docker-compose (background)
+make docker-down       Stop docker-compose
+make test              Run all tests
+make test-backend      Run Go tests
+make android-build     Build Android APK
+make android-install   Install APK on device/emulator
+make clean             Remove all build artifacts
 ```
 
 ## Project Structure
 
 ```
 expense-tracker/
-├── backend/           # Go backend (API + static file server)
-│   ├── cmd/server/    # Entry point
-│   └── internal/      # Application code
-├── frontend/          # React frontend
+├── backend/
+│   ├── cmd/server/         # Entry point + embedded static files
+│   └── internal/
+│       ├── auth/           # JWT utilities
+│       ├── config/         # Env-based config
+│       ├── database/       # SQLite + migrations + seed
+│       ├── handler/        # HTTP handlers + middleware
+│       ├── models/         # Data types
+│       ├── repository/     # DB queries
+│       └── service/        # Business logic
+├── frontend/
 │   └── src/
-├── mobile/            # Android WebView wrapper
-│   └── android/
-├── config.example.yaml
+│       ├── api/            # Typed API client modules
+│       ├── components/     # UI, layout, expense, dashboard, family
+│       ├── context/        # AuthContext
+│       ├── pages/          # Login, Home, Add, Dashboard, Family, Admin
+│       ├── types/          # TypeScript interfaces
+│       └── utils/          # Formatters, constants
+├── mobile/android/         # Android WebView wrapper
+├── .env.example
 ├── Makefile
 ├── Dockerfile
 └── docker-compose.yml
