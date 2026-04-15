@@ -181,3 +181,20 @@ func (s *FamilyService) DeactivateMember(memberID, familyID int64) error {
 
 	return s.userRepo.Deactivate(memberID)
 }
+
+func (s *FamilyService) ReactivateMember(memberID, familyID int64) error {
+	user, err := s.userRepo.GetByID(memberID)
+	if err != nil {
+		return err
+	}
+
+	if user.FamilyID == nil || *user.FamilyID != familyID {
+		return errors.New("member does not belong to this family")
+	}
+
+	if user.Role == models.RoleFamilyOwner {
+		return errors.New("cannot reactivate the family owner this way")
+	}
+
+	return s.userRepo.Reactivate(memberID)
+}

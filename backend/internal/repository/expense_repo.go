@@ -17,6 +17,34 @@ func NewExpenseRepository(db *sql.DB) *ExpenseRepository {
 	return &ExpenseRepository{db: db}
 }
 
+func scanExpense(row interface {
+	Scan(dest ...any) error
+}) (*models.Expense, error) {
+	e := &models.Expense{}
+	var note sql.NullString
+	if err := row.Scan(
+		&e.ID, &e.FamilyID, &e.UserID, &e.Amount, &e.TagID, &e.PaymentMethod, &note,
+		&e.ExpenseDate, &e.CreatedAt, &e.UpdatedAt,
+		&e.UserDisplayName, &e.TagName, &e.TagIcon,
+	); err != nil {
+		return nil, err
+	}
+	if note.Valid {
+		e.Note = note.String
+	}
+	return e, nil
+}
+
+const expenseSelectCols = `
+	e.id, e.family_id, e.user_id, e.amount, e.tag_id, e.payment_method, e.note,
+	e.expense_date, e.created_at, e.updated_at,
+	u.display_name, t.name, t.icon`
+
+const expenseJoins = `
+	FROM expenses e
+	JOIN users u ON e.user_id = u.id
+	JOIN tags t ON e.tag_id = t.id`
+
 func (r *ExpenseRepository) Create(expense *models.Expense) error {
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -25,11 +53,18 @@ func (r *ExpenseRepository) Create(expense *models.Expense) error {
 	defer tx.Rollback()
 
 	now := time.Now()
+	var noteVal interface{}
+	if expense.Note == "" {
+		noteVal = nil
+	} else {
+		noteVal = expense.Note
+	}
+
 	result, err := tx.Exec(
 		`INSERT INTO expenses (family_id, user_id, amount, tag_id, payment_method, note, expense_date, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		expense.FamilyID, expense.UserID, expense.Amount, expense.TagID,
-		expense.PaymentMethod, expense.Note, expense.ExpenseDate, now, now,
+		expense.PaymentMethod, noteVal, expense.ExpenseDate, now, now,
 	)
 	if err != nil {
 		return err
@@ -56,29 +91,23 @@ func (r *ExpenseRepository) Create(expense *models.Expense) error {
 }
 
 func (r *ExpenseRepository) GetByID(id int64) (*models.Expense, error) {
-	e := &models.Expense{}
-	err := r.db.QueryRow(
-		`SELECT e.id, e.family_id, e.user_id, e.amount, e.tag_id, e.payment_method, e.note,
-		        e.expense_date, e.created_at, e.updated_at,
-		        u.display_name, t.name, t.icon
-		 FROM expenses e
-		 JOIN users u ON e.user_id = u.id
-		 JOIN tags t ON e.tag_id = t.id
-		 WHERE e.id = ?`, id,
-	).Scan(&e.ID, &e.FamilyID, &e.UserID, &e.Amount, &e.TagID, &e.PaymentMethod, &e.Note,
-		&e.ExpenseDate, &e.CreatedAt, &e.UpdatedAt,
-		&e.UserDisplayName, &e.TagName, &e.TagIcon)
-	if err != nil {
-		return nil, err
-	}
-	return e, nil
+	row := r.db.QueryRow(
+		`SELECT `+expenseSelectCols+expenseJoins+` WHERE e.id = ?`, id,
+	)
+	return scanExpense(row)
 }
 
 func (r *ExpenseRepository) Update(expense *models.Expense) error {
+	var noteVal interface{}
+	if expense.Note == "" {
+		noteVal = nil
+	} else {
+		noteVal = expense.Note
+	}
 	_, err := r.db.Exec(
 		`UPDATE expenses SET amount = ?, tag_id = ?, payment_method = ?, note = ?, expense_date = ?, updated_at = ?
 		 WHERE id = ?`,
-		expense.Amount, expense.TagID, expense.PaymentMethod, expense.Note, expense.ExpenseDate, time.Now(), expense.ID,
+		expense.Amount, expense.TagID, expense.PaymentMethod, noteVal, expense.ExpenseDate, time.Now(), expense.ID,
 	)
 	return err
 }
@@ -115,14 +144,12 @@ func (r *ExpenseRepository) List(familyID int64, filters models.ExpenseFilters) 
 
 	whereClause := strings.Join(where, " AND ")
 
-	// Count total
 	var total int
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM expenses e WHERE %s", whereClause)
 	if err := r.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	// Fetch page
 	page := filters.Page
 	if page < 1 {
 		page = 1
@@ -134,15 +161,8 @@ func (r *ExpenseRepository) List(familyID int64, filters models.ExpenseFilters) 
 	offset := (page - 1) * pageSize
 
 	query := fmt.Sprintf(
-		`SELECT e.id, e.family_id, e.user_id, e.amount, e.tag_id, e.payment_method, e.note,
-		        e.expense_date, e.created_at, e.updated_at,
-		        u.display_name, t.name, t.icon
-		 FROM expenses e
-		 JOIN users u ON e.user_id = u.id
-		 JOIN tags t ON e.tag_id = t.id
-		 WHERE %s
-		 ORDER BY e.expense_date DESC, e.created_at DESC
-		 LIMIT ? OFFSET ?`, whereClause,
+		`SELECT `+expenseSelectCols+expenseJoins+` WHERE %s ORDER BY e.expense_date DESC, e.created_at DESC LIMIT ? OFFSET ?`,
+		whereClause,
 	)
 	args = append(args, pageSize, offset)
 
@@ -154,13 +174,11 @@ func (r *ExpenseRepository) List(familyID int64, filters models.ExpenseFilters) 
 
 	var expenses []models.Expense
 	for rows.Next() {
-		var e models.Expense
-		if err := rows.Scan(&e.ID, &e.FamilyID, &e.UserID, &e.Amount, &e.TagID, &e.PaymentMethod, &e.Note,
-			&e.ExpenseDate, &e.CreatedAt, &e.UpdatedAt,
-			&e.UserDisplayName, &e.TagName, &e.TagIcon); err != nil {
+		e, err := scanExpense(rows)
+		if err != nil {
 			return nil, 0, err
 		}
-		expenses = append(expenses, e)
+		expenses = append(expenses, *e)
 	}
 
 	return expenses, total, rows.Err()
@@ -168,15 +186,10 @@ func (r *ExpenseRepository) List(familyID int64, filters models.ExpenseFilters) 
 
 func (r *ExpenseRepository) GetRecent(familyID int64, limit int) ([]models.Expense, error) {
 	rows, err := r.db.Query(
-		`SELECT e.id, e.family_id, e.user_id, e.amount, e.tag_id, e.payment_method, e.note,
-		        e.expense_date, e.created_at, e.updated_at,
-		        u.display_name, t.name, t.icon
-		 FROM expenses e
-		 JOIN users u ON e.user_id = u.id
-		 JOIN tags t ON e.tag_id = t.id
+		`SELECT `+expenseSelectCols+expenseJoins+`
 		 WHERE e.family_id = ?
-		 ORDER BY e.created_at DESC
-		 LIMIT ?`, familyID, limit,
+		 ORDER BY e.created_at DESC LIMIT ?`,
+		familyID, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -185,13 +198,11 @@ func (r *ExpenseRepository) GetRecent(familyID int64, limit int) ([]models.Expen
 
 	var expenses []models.Expense
 	for rows.Next() {
-		var e models.Expense
-		if err := rows.Scan(&e.ID, &e.FamilyID, &e.UserID, &e.Amount, &e.TagID, &e.PaymentMethod, &e.Note,
-			&e.ExpenseDate, &e.CreatedAt, &e.UpdatedAt,
-			&e.UserDisplayName, &e.TagName, &e.TagIcon); err != nil {
+		e, err := scanExpense(rows)
+		if err != nil {
 			return nil, err
 		}
-		expenses = append(expenses, e)
+		expenses = append(expenses, *e)
 	}
 	return expenses, rows.Err()
 }

@@ -16,42 +16,49 @@ export function ExpenseCard({ expense, onDelete, onEdit, showPerson = true }: Ex
   const pm = PAYMENT_METHODS.find(p => p.value === expense.payment_method);
 
   return (
-    <div className="flex items-start gap-3 bg-white px-4 py-3 hover:bg-gray-50 transition-colors">
+    <div className="flex items-center gap-3 bg-white px-4 py-3 hover:bg-gray-50 transition-colors">
+
       {/* Tag icon */}
-      <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-lg flex-shrink-0 mt-0.5">
-        {expense.tag_icon || '💰'}
+      <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">
+        <span role="img">{expense.tag_icon || '💰'}</span>
       </div>
 
-      {/* Details */}
+      {/* Middle: tag name + subtitle */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="font-semibold text-gray-900 text-sm leading-tight">{expense.tag_name}</span>
-          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border flex-shrink-0 ${pm?.color || 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-            {pm?.label || expense.payment_method}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-semibold text-gray-900 text-sm truncate">
+            {expense.tag_name || 'Expense'}
           </span>
+          {pm && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border whitespace-nowrap flex-shrink-0 ${pm.color}`}>
+              {pm.label}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-          {showPerson && (
-            <span className="text-xs text-gray-500">{expense.user_display_name}</span>
+        <div className="flex items-center gap-1 mt-0.5 min-w-0">
+          {showPerson && expense.user_display_name && (
+            <span className="text-xs text-gray-500 truncate">{expense.user_display_name}</span>
           )}
           {expense.note && (
-            <span className="text-xs text-gray-400 truncate max-w-[120px]">
-              {showPerson ? '· ' : ''}{expense.note}
+            <span className="text-xs text-gray-400 truncate">
+              {showPerson && expense.user_display_name ? ' · ' : ''}{expense.note}
             </span>
           )}
         </div>
       </div>
 
-      {/* Amount + actions */}
+      {/* Right: amount + actions */}
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <span className="text-base font-bold text-gray-900 whitespace-nowrap">{formatCurrency(expense.amount)}</span>
+        <span className="text-base font-bold text-gray-900">
+          {typeof expense.amount === 'number' ? formatCurrency(expense.amount) : '—'}
+        </span>
         <div className="flex gap-1">
           {onEdit && (
             <button
               onClick={() => onEdit(expense)}
               className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
             >
-              <Edit2 size={13} />
+              <Edit2 size={14} />
             </button>
           )}
           {onDelete && !confirming && (
@@ -59,7 +66,7 @@ export function ExpenseCard({ expense, onDelete, onEdit, showPerson = true }: Ex
               onClick={() => setConfirming(true)}
               className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors"
             >
-              <Trash2 size={13} />
+              <Trash2 size={14} />
             </button>
           )}
           {onDelete && confirming && (
@@ -80,6 +87,7 @@ export function ExpenseCard({ expense, onDelete, onEdit, showPerson = true }: Ex
           )}
         </div>
       </div>
+
     </div>
   );
 }

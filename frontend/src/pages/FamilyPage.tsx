@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Edit2, UserX } from 'lucide-react';
+import { UserPlus, Edit2, UserX, UserCheck } from 'lucide-react';
 import { familiesApi } from '../api/families';
 import type { AddMemberRequest } from '../api/families';
 import { AppShell } from '../components/layout/AppShell';
@@ -65,14 +65,14 @@ export function FamilyPage() {
 
   const handleUpdate = async () => {
     if (!editMember) return;
-    if (editPin && editPin.length !== 6) {
+    if (editPin.trim() && editPin.trim().length !== 6) {
       toast('PIN must be exactly 6 digits', 'error');
       return;
     }
     setFormLoading(true);
     try {
       const update: Record<string, string> = { display_name: form.display_name };
-      if (editPin) update.pin = editPin;
+      if (editPin.trim()) update.pin = editPin.trim();
       await familiesApi.updateMember(editMember.id, update);
       toast('Member updated', 'success');
       setEditMember(null);
@@ -86,7 +86,7 @@ export function FamilyPage() {
   };
 
   const handleDeactivate = async (member: User) => {
-    if (!confirm(`Deactivate ${member.display_name}?`)) return;
+    if (!confirm(`Deactivate ${member.display_name}? They won't be able to log in, but their expense data is kept.`)) return;
     try {
       await familiesApi.deactivateMember(member.id);
       toast(`${member.display_name} deactivated`, 'success');
@@ -96,10 +96,24 @@ export function FamilyPage() {
     }
   };
 
+  const handleReactivate = async (member: User) => {
+    if (!confirm(`Reactivate ${member.display_name}? They will be able to log in again.`)) return;
+    try {
+      await familiesApi.reactivateMember(member.id);
+      toast(`${member.display_name} reactivated`, 'success');
+      load();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Failed', 'error');
+    }
+  };
+
+  const activeMembers = members.filter(m => m.is_active);
+  const deactivatedMembers = members.filter(m => !m.is_active);
+
   return (
     <AppShell title="Family">
-      <div className="p-4">
-        <div className="flex justify-between items-center mb-4">
+      <div className="p-4 flex flex-col gap-4">
+        <div className="flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-800">Family Members</h2>
           <Button size="sm" onClick={() => { resetForm(); setShowAdd(true); }}>
             <UserPlus size={16} /> Add Member
@@ -111,39 +125,76 @@ export function FamilyPage() {
         ) : members.length === 0 ? (
           <EmptyState icon="👨‍👩‍👧" title="No members yet" description="Add family members so they can track expenses too." />
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-100">
-            {members.map(m => (
-              <div key={m.id} className="flex items-center gap-3 p-4">
-                <div className="w-11 h-11 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-lg flex-shrink-0">
-                  {m.display_name[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900">{m.display_name}</p>
-                  <p className="text-sm text-gray-500">@{m.username} · {m.role.replace('_', ' ')}</p>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => {
-                      setEditMember(m);
-                      setForm({ username: m.username, display_name: m.display_name });
-                      setEditPin('');
-                    }}
-                    className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  {m.role !== 'family_owner' && (
+          <>
+            {/* Active members */}
+            <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-100">
+              {activeMembers.map(m => (
+                <div key={m.id} className="flex items-center gap-3 p-4">
+                  <div className="w-11 h-11 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-lg flex-shrink-0">
+                    {m.display_name[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900">{m.display_name}</p>
+                    <p className="text-sm text-gray-500">@{m.username} · {m.role.replace('_', ' ')}</p>
+                  </div>
+                  <div className="flex gap-1">
                     <button
-                      onClick={() => handleDeactivate(m)}
-                      className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors"
+                      onClick={() => {
+                        setEditMember(m);
+                        setForm({ username: m.username, display_name: m.display_name });
+                        setEditPin('');
+                      }}
+                      className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
+                      title="Edit member"
                     >
-                      <UserX size={16} />
+                      <Edit2 size={16} />
                     </button>
-                  )}
+                    {m.role !== 'family_owner' && (
+                      <button
+                        onClick={() => handleDeactivate(m)}
+                        className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Deactivate member"
+                      >
+                        <UserX size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Deactivated members */}
+            {deactivatedMembers.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1 mb-2">
+                  Deactivated · {deactivatedMembers.length}
+                </p>
+                <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-100 opacity-60">
+                  {deactivatedMembers.map(m => (
+                    <div key={m.id} className="flex items-center gap-3 p-4">
+                      <div className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-lg flex-shrink-0">
+                        {m.display_name[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-500 line-through">{m.display_name}</p>
+                        <p className="text-sm text-gray-400">@{m.username} · deactivated</p>
+                      </div>
+                      <button
+                        onClick={() => handleReactivate(m)}
+                        className="p-2 rounded-xl hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
+                        title="Reactivate member"
+                      >
+                        <UserCheck size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 px-1 mt-1">
+                  Their expense history is preserved. Tap ✓ to restore access.
+                </p>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
 
@@ -169,7 +220,7 @@ export function FamilyPage() {
             </p>
             <PinInput value={addPin} onChange={setAddPin} maxLength={6} />
           </div>
-          <p className="text-sm text-gray-400 text-center">Share the username and PIN with the family member verbally.</p>
+          <p className="text-sm text-gray-400 text-center">Share the username and PIN with the member verbally.</p>
           <Button
             size="lg"
             fullWidth
@@ -193,7 +244,7 @@ export function FamilyPage() {
             <p className="text-sm font-semibold text-gray-600 mb-1">
               New PIN <span className="text-gray-400 font-normal">(leave blank to keep current)</span>
             </p>
-            {editPin.length === 0 ? (
+            {!editPin ? (
               <button
                 type="button"
                 onClick={() => setEditPin(' ')}

@@ -206,3 +206,24 @@ func (h *FamilyHandler) DeactivateMember(w http.ResponseWriter, r *http.Request)
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "member deactivated"})
 }
+
+func (h *FamilyHandler) ReactivateMember(w http.ResponseWriter, r *http.Request) {
+	claims := GetUserFromContext(r.Context())
+	if claims.FamilyID == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no family associated"})
+		return
+	}
+
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid member id"})
+		return
+	}
+
+	if err := h.familyService.ReactivateMember(id, *claims.FamilyID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "member reactivated"})
+}

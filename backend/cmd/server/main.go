@@ -104,6 +104,7 @@ func main() {
 					r.Post("/members", familyHandler.AddMember)
 					r.Put("/members/{id}", familyHandler.UpdateMember)
 					r.Delete("/members/{id}", familyHandler.DeactivateMember)
+					r.Post("/members/{id}/reactivate", familyHandler.ReactivateMember)
 				})
 			})
 
