@@ -7,7 +7,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func SeedSuperAdmin(db *sql.DB, username, password string) error {
+func SeedSuperAdmin(db *sql.DB, username, pin string) error {
 	var exists int
 	err := db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&exists)
 	if err != nil {
@@ -18,7 +18,7 @@ func SeedSuperAdmin(db *sql.DB, username, password string) error {
 		return nil
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}

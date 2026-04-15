@@ -33,7 +33,7 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := database.SeedSuperAdmin(db, cfg.Auth.SuperAdmin.Username, cfg.Auth.SuperAdmin.Password); err != nil {
+	if err := database.SeedSuperAdmin(db, cfg.Auth.SuperAdmin.Username, cfg.Auth.SuperAdmin.PIN); err != nil {
 		log.Fatalf("Failed to seed super admin: %v", err)
 	}
 

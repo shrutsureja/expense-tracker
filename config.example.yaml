@@ -12,7 +12,7 @@ auth:
   token_expiry: "360h"  # 15 days
   super_admin:
     username: "shrutsureja"
-    password: "changeme"
+    pin: "123456"          # Must be exactly 6 digits (set via SUPER_ADMIN_PIN env var)
 
 backup:
   enabled: true
