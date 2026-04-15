@@ -3,9 +3,13 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"expense-tracker/internal/models"
 	"expense-tracker/internal/repository"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type TagHandler struct {
@@ -66,8 +70,13 @@ func (h *TagHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tag name is required"})
+		return
+	}
+	if len(req.Name) > 50 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tag name must be 50 characters or less"})
 		return
 	}
 
@@ -83,4 +92,25 @@ func (h *TagHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, tag)
+}
+
+func (h *TagHandler) DeleteTag(w http.ResponseWriter, r *http.Request) {
+	claims := GetUserFromContext(r.Context())
+	if claims.FamilyID == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no family associated"})
+		return
+	}
+
+	tagID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid tag id"})
+		return
+	}
+
+	if err := h.tagRepo.DeleteForFamily(tagID, *claims.FamilyID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "tag deleted"})
 }

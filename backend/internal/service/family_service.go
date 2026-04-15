@@ -2,13 +2,24 @@ package service
 
 import (
 	"errors"
+	"regexp"
 	"time"
 
+	"expense-tracker/internal/database"
 	"expense-tracker/internal/models"
 	"expense-tracker/internal/repository"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+var pinRegex = regexp.MustCompile(`^\d{6}$`)
+
+func validatePIN(pin string) error {
+	if !pinRegex.MatchString(pin) {
+		return errors.New("PIN must be exactly 6 digits")
+	}
+	return nil
+}
 
 type FamilyService struct {
 	familyRepo *repository.FamilyRepository
@@ -25,6 +36,9 @@ func NewFamilyService(familyRepo *repository.FamilyRepository, userRepo *reposit
 func (s *FamilyService) CreateFamily(name string, adminID int64, ownerUsername, ownerPassword, ownerDisplayName string) (*models.Family, *models.User, error) {
 	if name == "" || ownerUsername == "" || ownerPassword == "" || ownerDisplayName == "" {
 		return nil, nil, errors.New("all fields are required")
+	}
+	if err := validatePIN(ownerPassword); err != nil {
+		return nil, nil, err
 	}
 
 	db := s.familyRepo.DB()
@@ -70,14 +84,17 @@ func (s *FamilyService) CreateFamily(name string, adminID int64, ownerUsername, 
 		return nil, nil, err
 	}
 
+	// Seed default tags for the new family (best-effort, don't fail family creation)
+	_ = database.SeedDefaultTagsForFamily(db, familyID)
+
 	family := &models.Family{ID: familyID, Name: name, CreatedBy: adminID, OwnerID: &ownerID, CreatedAt: now, UpdatedAt: now}
 	user := &models.User{ID: ownerID, Username: ownerUsername, DisplayName: ownerDisplayName, Role: models.RoleFamilyOwner, FamilyID: &familyID, IsActive: true, CreatedAt: now, UpdatedAt: now}
 
 	return family, user, nil
 }
 
-func (s *FamilyService) ListFamilies() ([]models.Family, error) {
-	return s.familyRepo.GetAll()
+func (s *FamilyService) ListFamilies() ([]models.FamilyWithOwner, error) {
+	return s.familyRepo.GetAllWithOwners()
 }
 
 func (s *FamilyService) GetFamily(id int64) (*models.Family, error) {
@@ -91,6 +108,9 @@ func (s *FamilyService) DeleteFamily(id int64) error {
 func (s *FamilyService) AddMember(familyID int64, username, pin, displayName string) (*models.User, error) {
 	if username == "" || pin == "" || displayName == "" {
 		return nil, errors.New("username, pin, and display name are required")
+	}
+	if err := validatePIN(pin); err != nil {
+		return nil, err
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
@@ -132,6 +152,9 @@ func (s *FamilyService) UpdateMember(memberID int64, displayName, pin string, fa
 		user.DisplayName = displayName
 	}
 	if pin != "" {
+		if err := validatePIN(pin); err != nil {
+			return err
+		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
 		if err != nil {
 			return err

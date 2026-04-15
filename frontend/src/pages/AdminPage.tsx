@@ -6,6 +6,7 @@ import { AppShell } from '../components/layout/AppShell';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { PinInput } from '../components/auth/PinInput';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/Toast';
@@ -18,6 +19,7 @@ export function AdminPage() {
   const [form, setForm] = useState<CreateFamilyRequest>({
     name: '', owner_username: '', owner_password: '', owner_display_name: '',
   });
+  const [ownerPin, setOwnerPin] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const toast = useToast();
 
@@ -29,13 +31,18 @@ export function AdminPage() {
   useEffect(() => { load(); }, []);
 
   const handleCreate = async () => {
-    if (!form.name || !form.owner_username || !form.owner_password || !form.owner_display_name) return;
+    if (!form.name || !form.owner_username || !ownerPin || !form.owner_display_name) return;
+    if (ownerPin.length !== 6) {
+      toast('Owner PIN must be exactly 6 digits', 'error');
+      return;
+    }
     setFormLoading(true);
     try {
-      await familiesApi.create(form);
+      await familiesApi.create({ ...form, owner_password: ownerPin });
       toast(`Family "${form.name}" created`, 'success');
       setShowCreate(false);
       setForm({ name: '', owner_username: '', owner_password: '', owner_display_name: '' });
+      setOwnerPin('');
       load();
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : 'Failed to create family', 'error');
@@ -92,15 +99,44 @@ export function AdminPage() {
         )}
       </div>
 
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create Family">
+      <Modal open={showCreate} onClose={() => { setShowCreate(false); setOwnerPin(''); }} title="Create Family">
         <div className="flex flex-col gap-4">
-          <Input label="Family Name" placeholder="e.g. Sureja Family" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <Input
+            label="Family Name"
+            placeholder="e.g. Sureja Family"
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          />
           <hr className="border-gray-100" />
           <p className="text-sm font-semibold text-gray-500">Family Owner Account</p>
-          <Input label="Display Name" placeholder="e.g. Shrut" value={form.owner_display_name} onChange={e => setForm(f => ({ ...f, owner_display_name: e.target.value }))} />
-          <Input label="Username" placeholder="e.g. shrut" value={form.owner_username} onChange={e => setForm(f => ({ ...f, owner_username: e.target.value }))} autoCapitalize="none" />
-          <Input label="Password" type="password" placeholder="Owner password" value={form.owner_password} onChange={e => setForm(f => ({ ...f, owner_password: e.target.value }))} />
-          <Button size="lg" fullWidth onClick={handleCreate} disabled={formLoading || !form.name || !form.owner_username || !form.owner_password || !form.owner_display_name}>
+          <Input
+            label="Display Name"
+            placeholder="e.g. Shrut"
+            value={form.owner_display_name}
+            onChange={e => setForm(f => ({ ...f, owner_display_name: e.target.value }))}
+          />
+          <Input
+            label="Username"
+            placeholder="e.g. shrut"
+            value={form.owner_username}
+            onChange={e => setForm(f => ({ ...f, owner_username: e.target.value }))}
+            autoCapitalize="none"
+          />
+          <div>
+            <p className="text-sm font-semibold text-gray-600 mb-3">
+              Owner PIN <span className="text-gray-400 font-normal">(6 digits)</span>
+            </p>
+            <PinInput value={ownerPin} onChange={setOwnerPin} maxLength={6} />
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Share this PIN with the family owner verbally.
+            </p>
+          </div>
+          <Button
+            size="lg"
+            fullWidth
+            onClick={handleCreate}
+            disabled={formLoading || !form.name || !form.owner_username || ownerPin.length !== 6 || !form.owner_display_name}
+          >
             {formLoading ? 'Creating…' : 'Create Family'}
           </Button>
         </div>

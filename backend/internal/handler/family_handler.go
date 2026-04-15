@@ -22,10 +22,10 @@ func NewFamilyHandler(familyService *service.FamilyService) *FamilyHandler {
 // Admin endpoints
 
 type createFamilyRequest struct {
-	Name             string `json:"name"`
-	OwnerUsername     string `json:"owner_username"`
-	OwnerPassword    string `json:"owner_password"`
-	OwnerDisplayName string `json:"owner_display_name"`
+	Name             string `json:"name"              validate:"required,min=1,max=100"`
+	OwnerUsername    string `json:"owner_username"    validate:"required,min=2,max=50,alphanum"`
+	OwnerPassword    string `json:"owner_password"    validate:"required,len=6,numeric"`
+	OwnerDisplayName string `json:"owner_display_name" validate:"required,min=1,max=100"`
 }
 
 func (h *FamilyHandler) CreateFamily(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +34,10 @@ func (h *FamilyHandler) CreateFamily(w http.ResponseWriter, r *http.Request) {
 	var req createFamilyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if !validateRequest(w, req) {
 		return
 	}
 
@@ -58,7 +62,7 @@ func (h *FamilyHandler) ListFamilies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if families == nil {
-		families = []models.Family{}
+		families = []models.FamilyWithOwner{}
 	}
 	writeJSON(w, http.StatusOK, families)
 }
@@ -115,9 +119,9 @@ func (h *FamilyHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 type addMemberRequest struct {
-	Username    string `json:"username"`
-	Pin         string `json:"pin"`
-	DisplayName string `json:"display_name"`
+	Username    string `json:"username"     validate:"required,min=2,max=50,alphanum"`
+	Pin         string `json:"pin"          validate:"required,len=6,numeric"`
+	DisplayName string `json:"display_name" validate:"required,min=1,max=100"`
 }
 
 func (h *FamilyHandler) AddMember(w http.ResponseWriter, r *http.Request) {
@@ -133,6 +137,10 @@ func (h *FamilyHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateRequest(w, req) {
+		return
+	}
+
 	member, err := h.familyService.AddMember(*claims.FamilyID, req.Username, req.Pin, req.DisplayName)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -143,8 +151,8 @@ func (h *FamilyHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateMemberRequest struct {
-	DisplayName string `json:"display_name"`
-	Pin         string `json:"pin"`
+	DisplayName string `json:"display_name" validate:"omitempty,min=1,max=100"`
+	Pin         string `json:"pin"          validate:"omitempty,len=6,numeric"`
 }
 
 func (h *FamilyHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
@@ -163,6 +171,10 @@ func (h *FamilyHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 	var req updateMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if !validateRequest(w, req) {
 		return
 	}
 

@@ -36,9 +36,6 @@ func main() {
 	if err := database.SeedSuperAdmin(db, cfg.Auth.SuperAdmin.Username, cfg.Auth.SuperAdmin.Password); err != nil {
 		log.Fatalf("Failed to seed super admin: %v", err)
 	}
-	if err := database.SeedDefaultTags(db); err != nil {
-		log.Fatalf("Failed to seed default tags: %v", err)
-	}
 
 	// Repositories
 	userRepo := repository.NewUserRepository(db)
@@ -116,6 +113,7 @@ func main() {
 			r.Group(func(r chi.Router) {
 				r.Use(handler.RequireRole(models.RoleFamilyOwner))
 				r.Post("/tags", tagHandler.CreateTag)
+				r.Delete("/tags/{id}", tagHandler.DeleteTag)
 			})
 
 			// Expenses

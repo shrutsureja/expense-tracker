@@ -90,7 +90,7 @@ export function LoginPage() {
               size="lg"
               fullWidth
               onClick={() => handleLogin(pin)}
-              disabled={pin.length < 4 || loading}
+              disabled={pin.length < 6 || loading}
             >
               {loading ? 'Signing in…' : 'Sign In'}
             </Button>

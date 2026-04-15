@@ -91,7 +91,7 @@ export function HomePage() {
             description="Tap a category above to quickly add your first expense!"
           />
         ) : (
-          <div className="bg-white rounded-2xl mx-2 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl mx-2 shadow-sm">
             <ExpenseList
               expenses={expenses}
               onDelete={handleDelete}

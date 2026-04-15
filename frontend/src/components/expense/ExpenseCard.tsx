@@ -16,40 +16,42 @@ export function ExpenseCard({ expense, onDelete, onEdit, showPerson = true }: Ex
   const pm = PAYMENT_METHODS.find(p => p.value === expense.payment_method);
 
   return (
-    <div className="flex items-center gap-3 bg-white px-4 py-3 hover:bg-gray-50 transition-colors">
+    <div className="flex items-start gap-3 bg-white px-4 py-3 hover:bg-gray-50 transition-colors">
       {/* Tag icon */}
-      <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">
+      <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-lg flex-shrink-0 mt-0.5">
         {expense.tag_icon || '💰'}
       </div>
 
       {/* Details */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-900 text-base">{expense.tag_name}</span>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${pm?.color || 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-semibold text-gray-900 text-sm leading-tight">{expense.tag_name}</span>
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border flex-shrink-0 ${pm?.color || 'bg-gray-100 text-gray-500 border-gray-200'}`}>
             {pm?.label || expense.payment_method}
           </span>
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           {showPerson && (
-            <span className="text-sm text-gray-500">{expense.user_display_name}</span>
+            <span className="text-xs text-gray-500">{expense.user_display_name}</span>
           )}
           {expense.note && (
-            <span className="text-sm text-gray-400 truncate">· {expense.note}</span>
+            <span className="text-xs text-gray-400 truncate max-w-[120px]">
+              {showPerson ? '· ' : ''}{expense.note}
+            </span>
           )}
         </div>
       </div>
 
       {/* Amount + actions */}
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <span className="text-lg font-bold text-gray-900">{formatCurrency(expense.amount)}</span>
+        <span className="text-base font-bold text-gray-900 whitespace-nowrap">{formatCurrency(expense.amount)}</span>
         <div className="flex gap-1">
           {onEdit && (
             <button
               onClick={() => onEdit(expense)}
               className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
             >
-              <Edit2 size={14} />
+              <Edit2 size={13} />
             </button>
           )}
           {onDelete && !confirming && (
@@ -57,7 +59,7 @@ export function ExpenseCard({ expense, onDelete, onEdit, showPerson = true }: Ex
               onClick={() => setConfirming(true)}
               className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
             </button>
           )}
           {onDelete && confirming && (
@@ -66,7 +68,7 @@ export function ExpenseCard({ expense, onDelete, onEdit, showPerson = true }: Ex
                 onClick={() => { onDelete(expense.id); setConfirming(false); }}
                 className="px-2 py-1 text-xs bg-red-500 text-white rounded-lg font-medium"
               >
-                Delete
+                Yes
               </button>
               <button
                 onClick={() => setConfirming(false)}

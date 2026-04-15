@@ -6,6 +6,7 @@ import { AppShell } from '../components/layout/AppShell';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { PinInput } from '../components/auth/PinInput';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/Toast';
@@ -16,7 +17,9 @@ export function FamilyPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editMember, setEditMember] = useState<User | null>(null);
-  const [form, setForm] = useState({ username: '', pin: '', display_name: '' });
+  const [form, setForm] = useState({ username: '', display_name: '' });
+  const [addPin, setAddPin] = useState('');
+  const [editPin, setEditPin] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const toast = useToast();
 
@@ -29,13 +32,26 @@ export function FamilyPage() {
 
   useEffect(() => { load(); }, []);
 
-  const resetForm = () => setForm({ username: '', pin: '', display_name: '' });
+  const resetForm = () => {
+    setForm({ username: '', display_name: '' });
+    setAddPin('');
+    setEditPin('');
+  };
 
   const handleAdd = async () => {
-    if (!form.username || !form.pin || !form.display_name) return;
+    if (!form.username || !addPin || !form.display_name) return;
+    if (addPin.length !== 6) {
+      toast('PIN must be exactly 6 digits', 'error');
+      return;
+    }
     setFormLoading(true);
     try {
-      await familiesApi.addMember(form as AddMemberRequest);
+      const req: AddMemberRequest = {
+        username: form.username,
+        pin: addPin,
+        display_name: form.display_name,
+      };
+      await familiesApi.addMember(req);
       toast(`Added ${form.display_name}`, 'success');
       setShowAdd(false);
       resetForm();
@@ -49,10 +65,14 @@ export function FamilyPage() {
 
   const handleUpdate = async () => {
     if (!editMember) return;
+    if (editPin && editPin.length !== 6) {
+      toast('PIN must be exactly 6 digits', 'error');
+      return;
+    }
     setFormLoading(true);
     try {
       const update: Record<string, string> = { display_name: form.display_name };
-      if (form.pin) update.pin = form.pin;
+      if (editPin) update.pin = editPin;
       await familiesApi.updateMember(editMember.id, update);
       toast('Member updated', 'success');
       setEditMember(null);
@@ -103,7 +123,11 @@ export function FamilyPage() {
                 </div>
                 <div className="flex gap-1">
                   <button
-                    onClick={() => { setEditMember(m); setForm({ username: m.username, pin: '', display_name: m.display_name }); }}
+                    onClick={() => {
+                      setEditMember(m);
+                      setForm({ username: m.username, display_name: m.display_name });
+                      setEditPin('');
+                    }}
                     className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
                   >
                     <Edit2 size={16} />
@@ -124,24 +148,69 @@ export function FamilyPage() {
       </div>
 
       {/* Add member modal */}
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Family Member">
+      <Modal open={showAdd} onClose={() => { setShowAdd(false); resetForm(); }} title="Add Family Member">
         <div className="flex flex-col gap-4">
-          <Input label="Display Name" placeholder="e.g. Mom" value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))} />
-          <Input label="Username" placeholder="e.g. mom" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} autoCapitalize="none" />
-          <Input label="PIN (4-6 digits)" type="password" placeholder="e.g. 1234" value={form.pin} onChange={e => setForm(f => ({ ...f, pin: e.target.value }))} inputMode="numeric" />
-          <p className="text-sm text-gray-400">Share the username and PIN with the family member verbally.</p>
-          <Button size="lg" fullWidth onClick={handleAdd} disabled={formLoading || !form.username || !form.pin || !form.display_name}>
+          <Input
+            label="Display Name"
+            placeholder="e.g. Mom"
+            value={form.display_name}
+            onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+          />
+          <Input
+            label="Username"
+            placeholder="e.g. mom"
+            value={form.username}
+            onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+            autoCapitalize="none"
+          />
+          <div>
+            <p className="text-sm font-semibold text-gray-600 mb-3">
+              PIN <span className="text-gray-400 font-normal">(6 digits)</span>
+            </p>
+            <PinInput value={addPin} onChange={setAddPin} maxLength={6} />
+          </div>
+          <p className="text-sm text-gray-400 text-center">Share the username and PIN with the family member verbally.</p>
+          <Button
+            size="lg"
+            fullWidth
+            onClick={handleAdd}
+            disabled={formLoading || !form.username || addPin.length !== 6 || !form.display_name}
+          >
             {formLoading ? 'Adding…' : 'Add Member'}
           </Button>
         </div>
       </Modal>
 
       {/* Edit member modal */}
-      <Modal open={!!editMember} onClose={() => setEditMember(null)} title="Edit Member">
+      <Modal open={!!editMember} onClose={() => { setEditMember(null); resetForm(); }} title="Edit Member">
         <div className="flex flex-col gap-4">
-          <Input label="Display Name" value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))} />
-          <Input label="New PIN (leave blank to keep)" type="password" placeholder="Enter new PIN to change" value={form.pin} onChange={e => setForm(f => ({ ...f, pin: e.target.value }))} inputMode="numeric" />
-          <Button size="lg" fullWidth onClick={handleUpdate} disabled={formLoading}>
+          <Input
+            label="Display Name"
+            value={form.display_name}
+            onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+          />
+          <div>
+            <p className="text-sm font-semibold text-gray-600 mb-1">
+              New PIN <span className="text-gray-400 font-normal">(leave blank to keep current)</span>
+            </p>
+            {editPin.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => setEditPin(' ')}
+                className="w-full py-3 text-sm text-blue-600 border-2 border-dashed border-blue-200 rounded-xl hover:bg-blue-50 transition-colors"
+              >
+                Tap to set a new PIN
+              </button>
+            ) : (
+              <PinInput value={editPin.trim()} onChange={v => setEditPin(v)} maxLength={6} />
+            )}
+          </div>
+          <Button
+            size="lg"
+            fullWidth
+            onClick={handleUpdate}
+            disabled={formLoading || (editPin.trim().length > 0 && editPin.trim().length !== 6)}
+          >
             {formLoading ? 'Saving…' : 'Save Changes'}
           </Button>
         </div>
