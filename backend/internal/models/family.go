@@ -10,3 +10,8 @@ type Family struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+type FamilyWithOwner struct {
+	Family *Family `json:"family"`
+	Owner  *User   `json:"owner"`
+}

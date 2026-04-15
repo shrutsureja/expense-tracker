@@ -24,14 +24,14 @@ export function ExpenseList({ expenses, onDelete, onEdit, showPerson = true }: E
 
   return (
     <div className="flex flex-col">
-      {sortedDates.map(date => (
+      {sortedDates.map((date, i) => (
         <div key={date}>
-          <div className="px-4 py-2 bg-slate-100 sticky top-14 z-10">
+          <div className={`px-4 py-2 bg-slate-100 ${i === 0 ? 'rounded-t-2xl' : ''}`}>
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
               {formatDate(date)}
             </span>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className={`divide-y divide-gray-100 ${i === sortedDates.length - 1 ? 'rounded-b-2xl overflow-hidden' : ''}`}>
             {grouped[date].map(expense => (
               <ExpenseCard
                 key={expense.id}

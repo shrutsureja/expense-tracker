@@ -27,4 +27,5 @@ export const familiesApi = {
   updateMember: (id: number, data: Partial<AddMemberRequest & { is_active: boolean }>) =>
     api.put<User>(`/family/members/${id}`, data),
   deactivateMember: (id: number) => api.delete<void>(`/family/members/${id}`),
+  reactivateMember: (id: number) => api.post<void>(`/family/members/${id}/reactivate`, {}),
 };

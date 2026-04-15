@@ -93,3 +93,8 @@ func (r *UserRepository) Deactivate(id int64) error {
 	_, err := r.db.Exec(`UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?`, time.Now(), id)
 	return err
 }
+
+func (r *UserRepository) Reactivate(id int64) error {
+	_, err := r.db.Exec(`UPDATE users SET is_active = 1, updated_at = ? WHERE id = ?`, time.Now(), id)
+	return err
+}

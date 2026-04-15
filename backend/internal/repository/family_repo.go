@@ -52,6 +52,34 @@ func (r *FamilyRepository) GetAll() ([]models.Family, error) {
 	return families, rows.Err()
 }
 
+func (r *FamilyRepository) GetAllWithOwners() ([]models.FamilyWithOwner, error) {
+	rows, err := r.db.Query(
+		`SELECT f.id, f.name, f.created_by, f.owner_id, f.created_at, f.updated_at,
+		        u.id, u.username, u.display_name, u.role, u.family_id, u.is_active, u.created_at, u.updated_at
+		 FROM families f
+		 LEFT JOIN users u ON f.owner_id = u.id
+		 ORDER BY f.created_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []models.FamilyWithOwner
+	for rows.Next() {
+		var f models.Family
+		var u models.User
+		if err := rows.Scan(
+			&f.ID, &f.Name, &f.CreatedBy, &f.OwnerID, &f.CreatedAt, &f.UpdatedAt,
+			&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.FamilyID, &u.IsActive, &u.CreatedAt, &u.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, models.FamilyWithOwner{Family: &f, Owner: &u})
+	}
+	return result, rows.Err()
+}
+
 func (r *FamilyRepository) GetByID(id int64) (*models.Family, error) {
 	f := &models.Family{}
 	err := r.db.QueryRow(

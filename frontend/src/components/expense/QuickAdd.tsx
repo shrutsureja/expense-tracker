@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { Plus } from 'lucide-react';
 import { tagsApi } from '../../api/tags';
 import { expensesApi } from '../../api/expenses';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../ui/Toast';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -12,19 +14,34 @@ interface QuickAddProps {
   onAdded: () => void;
 }
 
+const ICON_SUGGESTIONS = ['💰', '🏷️', '🛍️', '🎯', '📌', '⚡', '🌟', '🔑', '🎪', '🏪'];
+
 export function QuickAdd({ onAdded }: QuickAddProps) {
+  const { user } = useAuth();
+  const isOwner = user?.role === 'family_owner';
+
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Create tag state
+  const [showCreateTag, setShowCreateTag] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagIcon, setNewTagIcon] = useState('💰');
+  const [tagCreateLoading, setTagCreateLoading] = useState(false);
+
   const toast = useToast();
   const amountRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    tagsApi.suggested().then(setTags).catch(() => tagsApi.list().then(t => setTags(t.slice(0, 12))));
-  }, []);
+  const loadTags = () =>
+    tagsApi.suggested()
+      .then(setTags)
+      .catch(() => tagsApi.list().then(t => setTags(t.slice(0, 12))));
+
+  useEffect(() => { loadTags(); }, []);
 
   useEffect(() => {
     if (selectedTag && amountRef.current) {
@@ -58,6 +75,25 @@ export function QuickAdd({ onAdded }: QuickAddProps) {
     }
   };
 
+  const handleCreateTag = async () => {
+    const name = newTagName.trim();
+    if (!name) return;
+    setTagCreateLoading(true);
+    try {
+      const created = await tagsApi.create(name, newTagIcon);
+      await loadTags();
+      setShowCreateTag(false);
+      setNewTagName('');
+      setNewTagIcon('💰');
+      setSelectedTag(created);
+      toast(`Tag "${name}" created`, 'success');
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'Failed to create tag', 'error');
+    } finally {
+      setTagCreateLoading(false);
+    }
+  };
+
   return (
     <div>
       {/* Tag chips */}
@@ -76,10 +112,21 @@ export function QuickAdd({ onAdded }: QuickAddProps) {
               <span>{tag.name}</span>
             </button>
           ))}
+          {isOwner && (
+            <button
+              onClick={() => setShowCreateTag(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white border-2 border-dashed border-gray-300
+                         hover:border-green-400 hover:bg-green-50 active:scale-95 transition-all shadow-sm
+                         text-sm font-medium text-gray-500"
+            >
+              <Plus size={14} />
+              New tag
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Quick-add modal */}
+      {/* Quick-add expense modal */}
       <Modal
         open={!!selectedTag}
         onClose={() => { setSelectedTag(null); setAmount(''); setNote(''); }}
@@ -147,6 +194,52 @@ export function QuickAdd({ onAdded }: QuickAddProps) {
             disabled={!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0 || loading}
           >
             {loading ? 'Adding…' : `Add ₹${amount || '0'}`}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Create tag modal (family owners only) */}
+      <Modal
+        open={showCreateTag}
+        onClose={() => { setShowCreateTag(false); setNewTagName(''); setNewTagIcon('💰'); }}
+        title="Create New Tag"
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className="text-sm font-semibold text-gray-600 block mb-2">Pick an icon</label>
+            <div className="flex flex-wrap gap-2">
+              {ICON_SUGGESTIONS.map(icon => (
+                <button
+                  key={icon}
+                  type="button"
+                  onClick={() => setNewTagIcon(icon)}
+                  className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all
+                    ${newTagIcon === icon ? 'bg-blue-100 border-2 border-blue-400 scale-110' : 'bg-gray-100 hover:bg-gray-200'}`}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Or type any emoji below in the name field.</p>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-gray-600 block mb-1">Tag Name</label>
+            <input
+              type="text"
+              placeholder="e.g. Gym, Parking, Party…"
+              value={newTagName}
+              onChange={e => setNewTagName(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border-2 border-gray-200 focus:border-blue-400 focus:outline-none text-sm"
+              autoFocus
+            />
+          </div>
+          <Button
+            size="lg"
+            fullWidth
+            onClick={handleCreateTag}
+            disabled={!newTagName.trim() || tagCreateLoading}
+          >
+            {tagCreateLoading ? 'Creating…' : `Create "${newTagName.trim() || '…'}" Tag`}
           </Button>
         </div>
       </Modal>

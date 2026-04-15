@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react';
+import { type FormEvent } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wallet } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -8,30 +9,26 @@ import { PinInput } from '../components/auth/PinInput';
 
 export function LoginPage() {
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [pin, setPin] = useState('');
-  const [step, setStep] = useState<'username' | 'pin' | 'password'>('username');
+  const [step, setStep] = useState<'username' | 'pin'>('username');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // Simple heuristic: if username looks like a "family member" (short), use PIN
-  // In practice, attempt login and if it fails, try the other
-  const isLikelyPin = (un: string) => un !== 'shrutsureja' && un.length <= 10;
-
   const handleUsernameSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!username.trim()) return;
     setError('');
-    setStep(isLikelyPin(username) ? 'pin' : 'password');
+    setStep('pin');
   };
 
-  const handleLogin = async (cred: string) => {
+  const handleLogin = async () => {
+    if (pin.length !== 6) return;
     setLoading(true);
     setError('');
     try {
-      await login(username.trim(), cred);
+      await login(username.trim(), pin);
       navigate('/', { replace: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
@@ -39,12 +36,6 @@ export function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handlePasswordSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!password) return;
-    handleLogin(password);
   };
 
   return (
@@ -78,7 +69,7 @@ export function LoginPage() {
           </form>
         )}
 
-        {/* Step 2a: PIN */}
+        {/* Step 2: PIN (all users) */}
         {step === 'pin' && (
           <div className="flex flex-col gap-5">
             <p className="text-center text-gray-600 text-base">
@@ -89,8 +80,8 @@ export function LoginPage() {
             <Button
               size="lg"
               fullWidth
-              onClick={() => handleLogin(pin)}
-              disabled={pin.length < 4 || loading}
+              onClick={handleLogin}
+              disabled={pin.length !== 6 || loading}
             >
               {loading ? 'Signing in…' : 'Sign In'}
             </Button>
@@ -102,34 +93,6 @@ export function LoginPage() {
               ← Back
             </button>
           </div>
-        )}
-
-        {/* Step 2b: Password */}
-        {step === 'password' && (
-          <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-5">
-            <p className="text-center text-gray-600 text-base">
-              Enter password for <strong>{username}</strong>
-            </p>
-            <Input
-              label="Password"
-              type="password"
-              placeholder="Enter password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              autoFocus
-            />
-            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-            <Button type="submit" size="lg" fullWidth disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign In'}
-            </Button>
-            <button
-              type="button"
-              onClick={() => { setStep('username'); setPassword(''); setError(''); }}
-              className="text-sm text-gray-400 hover:text-gray-600 text-center"
-            >
-              ← Back
-            </button>
-          </form>
         )}
       </div>
     </div>

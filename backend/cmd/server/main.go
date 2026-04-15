@@ -33,11 +33,8 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := database.SeedSuperAdmin(db, cfg.Auth.SuperAdmin.Username, cfg.Auth.SuperAdmin.Password); err != nil {
+	if err := database.SeedSuperAdmin(db, cfg.Auth.SuperAdmin.Username, cfg.Auth.SuperAdmin.PIN); err != nil {
 		log.Fatalf("Failed to seed super admin: %v", err)
-	}
-	if err := database.SeedDefaultTags(db); err != nil {
-		log.Fatalf("Failed to seed default tags: %v", err)
 	}
 
 	// Repositories
@@ -107,6 +104,7 @@ func main() {
 					r.Post("/members", familyHandler.AddMember)
 					r.Put("/members/{id}", familyHandler.UpdateMember)
 					r.Delete("/members/{id}", familyHandler.DeactivateMember)
+					r.Post("/members/{id}/reactivate", familyHandler.ReactivateMember)
 				})
 			})
 
@@ -116,6 +114,7 @@ func main() {
 			r.Group(func(r chi.Router) {
 				r.Use(handler.RequireRole(models.RoleFamilyOwner))
 				r.Post("/tags", tagHandler.CreateTag)
+				r.Delete("/tags/{id}", tagHandler.DeleteTag)
 			})
 
 			// Expenses

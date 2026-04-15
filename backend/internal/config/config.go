@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -24,14 +25,14 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret  string          `yaml:"jwt_secret"`
-	TokenExpiry string         `yaml:"token_expiry"`
-	SuperAdmin SuperAdminConfig `yaml:"super_admin"`
+	JWTSecret   string          `yaml:"jwt_secret"`
+	TokenExpiry string          `yaml:"token_expiry"`
+	SuperAdmin  SuperAdminConfig `yaml:"super_admin"`
 }
 
 type SuperAdminConfig struct {
 	Username string `yaml:"username"`
-	Password string `yaml:"password"`
+	PIN      string `yaml:"pin"`
 }
 
 type BackupConfig struct {
@@ -45,6 +46,8 @@ type GoogleDriveConfig struct {
 	CredentialsFile string `yaml:"credentials_file"`
 	FolderID        string `yaml:"folder_id"`
 }
+
+var pinRegex = regexp.MustCompile(`^\d{6}$`)
 
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -85,11 +88,11 @@ func Load() (*Config, error) {
 	if v := os.Getenv("JWT_SECRET"); v != "" {
 		cfg.Auth.JWTSecret = v
 	}
-	if v := os.Getenv("SUPER_ADMIN_PASSWORD"); v != "" {
-		cfg.Auth.SuperAdmin.Password = v
-	}
 	if v := os.Getenv("SUPER_ADMIN_USERNAME"); v != "" {
 		cfg.Auth.SuperAdmin.Username = v
+	}
+	if v := os.Getenv("SUPER_ADMIN_PIN"); v != "" {
+		cfg.Auth.SuperAdmin.PIN = v
 	}
 	if v := os.Getenv("TOKEN_EXPIRY"); v != "" {
 		cfg.Auth.TokenExpiry = v
@@ -99,8 +102,11 @@ func Load() (*Config, error) {
 	if cfg.Auth.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET env var or auth.jwt_secret in config.yaml is required")
 	}
-	if cfg.Auth.SuperAdmin.Password == "" {
-		return nil, fmt.Errorf("SUPER_ADMIN_PASSWORD env var or auth.super_admin.password in config.yaml is required")
+	if cfg.Auth.SuperAdmin.PIN == "" {
+		return nil, fmt.Errorf("SUPER_ADMIN_PIN env var or auth.super_admin.pin in config.yaml is required")
+	}
+	if !pinRegex.MatchString(cfg.Auth.SuperAdmin.PIN) {
+		return nil, fmt.Errorf("SUPER_ADMIN_PIN must be exactly 6 digits (got %q)", cfg.Auth.SuperAdmin.PIN)
 	}
 
 	return cfg, nil
